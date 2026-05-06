@@ -1,0 +1,23 @@
+app:
+  secret_key: "please-change-this-secret-key"
+  host: "0.0.0.0"
+  port: 8002
+  debug: true
+
+database:
+  # 你可以直接填 uri，也可以填下面拆分字段
+  uri: "mysql+pymysql://audio_user:audio_pass@127.0.0.1:3307/audio_set?charset=utf8mb4"
+  host: "127.0.0.1"
+  port: 3307
+  name: "audio_set"
+  user: "audio_user"
+  password: "audio_pass"
+  charset: "utf8mb4"
+
+recording:
+  texts: ["123", "abc"]
+  rounds: 10
+  sample_rate_1: 32000
+  sample_rate_2: 16000
+  bit_depth: 16
+  channels: 1

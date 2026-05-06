@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}录音结果{% endblock %}
+
+{% block content %}
+<div style="display: flex; gap: 16px; align-items: flex-start;">
+  <div style="flex: 1;">
+    <div class="card">
+      <h2>按ID+文本下载（ZIP）</h2>
+      <p class="muted">下载勾选单位为“ID + 文本”组合。</p>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+        <label>
+          ID筛选
+          <select id="download_filter_id">
+            <option value="">全部</option>
+            {% for sid in all_speaker_ids %}
+            <option value="{{ sid }}">{{ sid }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          文本筛选
+          <select id="download_filter_text">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          状态筛选
+          <select id="download_filter_status">
+            <option value="">全部</option>
+            <option value="已完成">已完成</option>
+            <option value="未完成">未完成</option>
+            <option value="未录制">未录制</option>
+          </select>
+        </label>
+        <button type="button" id="download_filter_reset">重置筛选</button>
+      </div>
+      <form method="post" action="{{ url_for('download') }}">
+        <label>
+          <input type="checkbox" id="select_all" />
+          全选当前可见项（仅勾选有数据行）
+        </label>
+
+        <table style="margin-top: 10px;">
+          <thead>
+            <tr>
+              <th>选择</th>
+              <th>ID</th>
+              <th>文本</th>
+              <th>已录数量</th>
+              <th>目标数量</th>
+              <th>状态</th>
+            </tr>
+          </thead>
+          <tbody id="download_table_body">
+            {% for row in download_rows %}
+            <tr>
+              <td>
+                <input
+                  type="checkbox"
+                  class="text_checkbox"
+                  name="record_units"
+                  value="{{ row.unit_key }}"
+                  {% if not row.selectable %}disabled{% endif %}
+                />
+              </td>
+              <td class="download-col-id">{{ row.speaker_id }}</td>
+              <td>{{ row.text_content }}</td>
+              <td>{{ row.total_count }}</td>
+              <td>{{ row.expected_per_text }}</td>
+              <td class="download-col-status">{{ row.status }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 12px;">
+          <button type="submit">下载选中 ID+文本（ZIP + 元数据）</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div style="width: 320px;">
+    <div class="card">
+      <h3>未完成 ID（右侧提示）</h3>
+      {% if incomplete_groups %}
+      <ul style="padding-left: 18px; margin: 8px 0;">
+        {% for row in incomplete_groups %}
+        <li style="margin-bottom: 8px;">
+          <strong>{{ row.speaker_id }}</strong>
+          <span class="muted">({{ "%.1f"|format(row.completion_percent) }}%)</span>
+          <div>
+            <a href="{{ url_for('record', speaker_id=row.speaker_id) }}">点击继续录制</a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">当前所有 ID 都已完成。</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>全部录音记录</h3>
+  <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+    <label>
+      ID筛选
+      <select id="record_filter_id">
+        <option value="">全部</option>
+      </select>
+    </label>
+    <label>
+      文本筛选
+      <select id="record_filter_text">
+        <option value="">全部</option>
+      </select>
+    </label>
+    <label>
+      采样率筛选
+      <select id="record_filter_rate">
+        <option value="">全部</option>
+      </select>
+    </label>
+    <button type="button" id="record_filter_reset">重置筛选</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>文本</th>
+        <th>轮次</th>
+        <th>采样率</th>
+        <th>位宽</th>
+        <th>通道数</th>
+        <th>文件名</th>
+        <th>登录用户</th>
+        <th>时长(秒)</th>
+        <th>时间</th>
+        <th>预览</th>
+        <th>删除</th>
+      </tr>
+    </thead>
+    <tbody id="record_table_body">
+      {% for rec in records %}
+      <tr
+        data-record-row-id="{{ rec.id }}"
+        data-record-id="{{ rec.speaker_id }}"
+        data-record-text="{{ rec.text_content }}"
+        data-record-rate="{{ rec.sample_rate }}"
+      >
+        <td>{{ rec.speaker_id }}</td>
+        <td>{{ rec.text_content }}</td>
+        <td>{{ rec.round_index }}</td>
+        <td>{{ rec.sample_rate }}</td>
+        <td>{{ rec.bit_depth }}</td>
+        <td>{{ rec.channels }}</td>
+        <td>{{ rec.filename }}</td>
+        <td>{{ record_user_map.get(rec.user_id, rec.user_id) }}</td>
+        <td>{{ "%.3f"|format(rec.duration_seconds) }}</td>
+        <td>{{ rec.created_at }}</td>
+        <td><audio controls preload="none" src="{{ url_for('audio_preview', record_id=rec.id) }}"></audio></td>
+        <td><button type="button" class="delete-record-btn" data-record-id="{{ rec.id }}">删除</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  const selectAll = document.getElementById("select_all");
+  const boxes = document.querySelectorAll(".text_checkbox");
+  const downloadFilterId = document.getElementById("download_filter_id");
+  const downloadFilterText = document.getElementById("download_filter_text");
+  const downloadFilterStatus = document.getElementById("download_filter_status");
+  const downloadFilterReset = document.getElementById("download_filter_reset");
+  const downloadRows = document.querySelectorAll("#download_table_body tr");
+  const downloadTextOptionSet = new Set();
+
+  downloadRows.forEach((row) => {
+    const rowText = (row.children[2]?.textContent || "").trim();
+    if (rowText) downloadTextOptionSet.add(rowText);
+  });
+  [...downloadTextOptionSet].sort().forEach((txt) => {
+    const opt = document.createElement("option");
+    opt.value = txt;
+    opt.textContent = txt;
+    downloadFilterText.appendChild(opt);
+  });
+
+  function applyDownloadFilters() {
+    const idVal = downloadFilterId.value.trim();
+    const textVal = downloadFilterText.value.trim();
+    const statusVal = downloadFilterStatus.value.trim();
+
+    downloadRows.forEach((row) => {
+      const rowId = (row.querySelector(".download-col-id")?.textContent || "").trim();
+      const rowText = (row.children[2]?.textContent || "").trim();
+      const rowStatus = (row.querySelector(".download-col-status")?.textContent || "").trim();
+
+      const idMatch = !idVal || rowId === idVal;
+      const textMatch = !textVal || rowText === textVal;
+      const statusMatch = !statusVal || rowStatus === statusVal;
+      row.style.display = idMatch && textMatch && statusMatch ? "" : "none";
+    });
+    selectAll.checked = false;
+  }
+
+  downloadFilterId.addEventListener("change", applyDownloadFilters);
+  downloadFilterText.addEventListener("change", applyDownloadFilters);
+  downloadFilterStatus.addEventListener("change", applyDownloadFilters);
+  downloadFilterReset.addEventListener("click", () => {
+    downloadFilterId.value = "";
+    downloadFilterText.value = "";
+    downloadFilterStatus.value = "";
+    applyDownloadFilters();
+  });
+
+  selectAll.addEventListener("change", () => {
+    boxes.forEach((box) => {
+      const row = box.closest("tr");
+      if (!box.disabled && row && row.style.display !== "none") {
+        box.checked = selectAll.checked;
+      }
+    });
+  });
+
+  const recordRows = Array.from(document.querySelectorAll("#record_table_body tr"));
+  const recordFilterId = document.getElementById("record_filter_id");
+  const recordFilterText = document.getElementById("record_filter_text");
+  const recordFilterRate = document.getElementById("record_filter_rate");
+  const recordFilterReset = document.getElementById("record_filter_reset");
+
+  function fillRecordFilterOptions() {
+    const idSet = new Set();
+    const textSet = new Set();
+    const rateSet = new Set();
+
+    recordRows.forEach((row) => {
+      idSet.add(row.dataset.recordId);
+      textSet.add(row.dataset.recordText);
+      rateSet.add(row.dataset.recordRate);
+    });
+
+    [...idSet].sort().forEach((val) => {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = val;
+      recordFilterId.appendChild(opt);
+    });
+    [...textSet].sort().forEach((val) => {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = val;
+      recordFilterText.appendChild(opt);
+    });
+    [...rateSet].sort((a, b) => Number(a) - Number(b)).forEach((val) => {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = val;
+      recordFilterRate.appendChild(opt);
+    });
+  }
+
+  function applyRecordFilters() {
+    const idVal = recordFilterId.value.trim();
+    const textVal = recordFilterText.value.trim();
+    const rateVal = recordFilterRate.value.trim();
+    recordRows.forEach((row) => {
+      const idMatch = !idVal || row.dataset.recordId === idVal;
+      const textMatch = !textVal || row.dataset.recordText === textVal;
+      const rateMatch = !rateVal || row.dataset.recordRate === rateVal;
+      row.style.display = idMatch && textMatch && rateMatch ? "" : "none";
+    });
+  }
+
+  recordFilterId.addEventListener("change", applyRecordFilters);
+  recordFilterText.addEventListener("change", applyRecordFilters);
+  recordFilterRate.addEventListener("change", applyRecordFilters);
+  recordFilterReset.addEventListener("click", () => {
+    recordFilterId.value = "";
+    recordFilterText.value = "";
+    recordFilterRate.value = "";
+    applyRecordFilters();
+  });
+
+  fillRecordFilterOptions();
+
+  async function deleteRecord(recordId) {
+    const ok = window.confirm("确认删除这条录音吗？删除后不可恢复。");
+    if (!ok) return;
+    const resp = await fetch("/api/delete-record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ record_id: Number(recordId) }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      window.alert(data.message || "删除失败");
+      return;
+    }
+    window.location.reload();
+  }
+
+  document.querySelectorAll(".delete-record-btn").forEach((btn) => {
+    btn.addEventListener("click", () => deleteRecord(btn.dataset.recordId));
+  });
+</script>
+{% endblock %}

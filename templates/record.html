@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}录音{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>录音任务</h2>
+  <p class="muted">先填写唯一 ID，通过校验后开始录音。</p>
+  <label for="speaker_id">ID</label>
+  <input id="speaker_id" type="text" placeholder="请输入唯一ID" />
+  <button id="start_session_btn" type="button">确认ID并开始</button>
+  <button id="switch_session_btn" type="button">新建/切换ID</button>
+  <p id="session_message" class="muted"></p>
+</div>
+
+<div style="display: flex; gap: 16px; align-items: flex-start;">
+  <div style="flex: 1;">
+    <div class="card">
+      <h3>进度</h3>
+      <div style="margin: 10px 0; padding: 12px; border: 2px dashed #2f80ed; border-radius: 8px; background: #f4f8ff;">
+        <div class="muted">请朗读以下文本（录制时会重复提示）：</div>
+        <div id="prompt_text" style="font-size: 24px; font-weight: 700; margin-top: 6px; color: #1f4fa8;">-</div>
+      </div>
+      <p>当前文本：<strong id="current_text">-</strong></p>
+      <p>当前轮次：<strong id="current_round">-</strong></p>
+      <p>总轮次：<strong id="total_rounds">{{ recording_cfg.rounds }}</strong></p>
+      <p id="task_status" class="muted">等待开始录音...</p>
+    </div>
+  </div>
+
+  <div style="width: 320px;">
+    <div class="card">
+      <h3>未完成 ID</h3>
+      <p class="muted">点击可继续录制。</p>
+      {% if incomplete_groups %}
+      <ul id="incomplete_id_list" style="padding-left: 18px; margin: 8px 0;">
+        {% for row in incomplete_groups %}
+        <li style="margin-bottom: 8px;">
+          <a href="{{ url_for('record', speaker_id=row.speaker_id) }}">{{ row.speaker_id }}</a>
+          <span class="muted">({{ "%.1f"|format(row.completion_percent) }}%)</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p id="incomplete_id_empty" class="muted">当前没有未完成 ID。</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>录音操作</h3>
+  <button id="record_start_btn" type="button" disabled>开始录制</button>
+  <button id="record_stop_btn" type="button" disabled>结束录制</button>
+  <button id="save_btn" type="button" disabled>保存并下一轮</button>
+  <button id="redo_btn" type="button" disabled>重新录制</button>
+
+  <div style="margin-top: 12px;">
+    <p>实时波形：</p>
+    <canvas
+      id="waveform_canvas"
+      width="860"
+      height="160"
+      style="width: 100%; max-width: 860px; border: 1px solid #ddd; border-radius: 6px; background: #0b1220;"
+    ></canvas>
+  </div>
+
+  <div style="margin-top: 12px;">
+    <p>32k 预览：</p>
+    <audio id="preview_32000" controls></audio>
+    <p>16k 预览：</p>
+    <audio id="preview_16000" controls></audio>
+  </div>
+</div>
+
+<div class="card">
+  <h3>当前ID录音记录</h3>
+  <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+    <label>
+      文本筛选
+      <select id="current_records_text_filter">
+        <option value="">全部</option>
+      </select>
+    </label>
+    <button type="button" id="current_records_filter_reset">重置筛选</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>文本</th>
+        <th>轮次</th>
+        <th>采样率</th>
+        <th>时长(秒)</th>
+        <th>文件名</th>
+        <th>预览</th>
+        <th>重录</th>
+        <th>删除</th>
+      </tr>
+    </thead>
+    <tbody id="current_records_body">
+      <tr>
+        <td colspan="8" class="muted">请先确认 ID。</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  window.RECORDING_CONFIG = {{ recording_cfg | tojson }};
+  window.INITIAL_SPEAKER_ID = {{ initial_speaker_id | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/record.js') }}"></script>
+{% endblock %}

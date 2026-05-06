@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}注册{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h2>注册</h2>
+  <form method="post">
+    <label for="username">用户名</label>
+    <input id="username" name="username" type="text" required />
+
+    <label for="password">密码</label>
+    <input id="password" name="password" type="password" required />
+
+    <div style="margin-top: 12px;">
+      <button type="submit">注册</button>
+      <a href="{{ url_for('login') }}">去登录</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Audio Set{% endblock %}</title>
+    <style>
+      :root {
+        --bg-color: #ffffff;
+        --text-color: #1f2328;
+        --muted-color: #666666;
+        --card-bg: #ffffff;
+        --card-border: #dddddd;
+        --table-border: #dddddd;
+        --input-bg: #ffffff;
+        --input-text: #1f2328;
+        --btn-bg: #f5f5f5;
+        --btn-border: #c9c9c9;
+        --btn-text: #1f2328;
+        --btn-disabled-bg: #ececec;
+        --btn-disabled-border: #d8d8d8;
+        --btn-disabled-text: #9a9a9a;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        background: var(--bg-color);
+        color: var(--text-color);
+      }
+      nav { margin-bottom: 16px; }
+      nav a { margin-right: 12px; }
+      .flash { padding: 8px 12px; margin-bottom: 10px; border-radius: 4px; }
+      .flash.success { background: #e8f5e9; color: #1b5e20; }
+      .flash.error { background: #ffebee; color: #b71c1c; }
+      .card { border: 1px solid var(--card-border); background: var(--card-bg); padding: 16px; margin-bottom: 16px; border-radius: 8px; }
+      label { display: block; margin: 8px 0 4px; }
+      input[type="text"], input[type="password"], select {
+        width: 320px;
+        max-width: 100%;
+        padding: 8px;
+        border: 1px solid var(--card-border);
+        background: var(--input-bg);
+        color: var(--input-text);
+      }
+      button {
+        padding: 8px 12px;
+        margin-right: 8px;
+        background: var(--btn-bg);
+        color: var(--btn-text);
+        border: 1px solid var(--btn-border);
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        filter: brightness(0.96);
+      }
+      button:disabled {
+        background: var(--btn-disabled-bg);
+        color: var(--btn-disabled-text);
+        border-color: var(--btn-disabled-border);
+        cursor: not-allowed;
+        opacity: 0.75;
+      }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid var(--table-border); padding: 8px; text-align: left; }
+      .muted { color: var(--muted-color); }
+    </style>
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <nav>
+      {% if session.get("user_id") %}
+      <a href="{{ url_for('record') }}">录音</a>
+      <a href="{{ url_for('recordings') }}">录音结果</a>
+      <span class="muted">当前用户：{{ session.get("username") }}</span>
+      <a href="{{ url_for('logout') }}">退出</a>
+      {% else %}
+      <a href="{{ url_for('login') }}">登录</a>
+      <a href="{{ url_for('register') }}">注册</a>
+      {% endif %}
+      <label style="display: inline-block; margin-left: 8px;">
+        主题
+        <select id="theme_selector" style="width: 120px; margin-left: 6px; padding: 4px;">
+          <option value="light">白色</option>
+          <option value="gray">灰色</option>
+          <option value="navy">深蓝色</option>
+          <option value="eye">护眼色</option>
+        </select>
+      </label>
+    </nav>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+    <script>
+      (function () {
+        const themes = {
+          light: {
+            "--bg-color": "#ffffff",
+            "--text-color": "#1f2328",
+            "--muted-color": "#666666",
+            "--card-bg": "#ffffff",
+            "--card-border": "#dddddd",
+            "--table-border": "#dddddd",
+            "--input-bg": "#ffffff",
+            "--input-text": "#1f2328",
+            "--btn-bg": "#f5f5f5",
+            "--btn-border": "#c9c9c9",
+            "--btn-text": "#1f2328",
+            "--btn-disabled-bg": "#ececec",
+            "--btn-disabled-border": "#d8d8d8",
+            "--btn-disabled-text": "#9a9a9a",
+          },
+          gray: {
+            "--bg-color": "#f2f3f5",
+            "--text-color": "#2e3135",
+            "--muted-color": "#6f747b",
+            "--card-bg": "#fafafa",
+            "--card-border": "#cfd4db",
+            "--table-border": "#cfd4db",
+            "--input-bg": "#ffffff",
+            "--input-text": "#2e3135",
+            "--btn-bg": "#e6e9ed",
+            "--btn-border": "#c2c9d2",
+            "--btn-text": "#2e3135",
+            "--btn-disabled-bg": "#dde2e8",
+            "--btn-disabled-border": "#cfd5dc",
+            "--btn-disabled-text": "#8a919a",
+          },
+          navy: {
+            "--bg-color": "#0d1b2a",
+            "--text-color": "#e0e8f0",
+            "--muted-color": "#a6b7c8",
+            "--card-bg": "#14263a",
+            "--card-border": "#2b4259",
+            "--table-border": "#2b4259",
+            "--input-bg": "#102034",
+            "--input-text": "#e0e8f0",
+            "--btn-bg": "#1a3550",
+            "--btn-border": "#33597a",
+            "--btn-text": "#e0e8f0",
+            "--btn-disabled-bg": "#24384c",
+            "--btn-disabled-border": "#334a61",
+            "--btn-disabled-text": "#8aa0b5",
+          },
+          eye: {
+            "--bg-color": "#f3f8e8",
+            "--text-color": "#2a3b1f",
+            "--muted-color": "#5c6d4f",
+            "--card-bg": "#f8fbeF",
+            "--card-border": "#c9d8b7",
+            "--table-border": "#c9d8b7",
+            "--input-bg": "#ffffff",
+            "--input-text": "#2a3b1f",
+            "--btn-bg": "#dfeccf",
+            "--btn-border": "#c1d2a8",
+            "--btn-text": "#2a3b1f",
+            "--btn-disabled-bg": "#e7efdb",
+            "--btn-disabled-border": "#d0dfbe",
+            "--btn-disabled-text": "#8a9a7d",
+          },
+        };
+        const selector = document.getElementById("theme_selector");
+        if (!selector) return;
+        const applyTheme = (name) => {
+          const theme = themes[name] || themes.light;
+          Object.keys(theme).forEach((key) => {
+            document.documentElement.style.setProperty(key, theme[key]);
+          });
+        };
+        const saved = localStorage.getItem("audio_set_theme") || "light";
+        selector.value = saved;
+        applyTheme(saved);
+        selector.addEventListener("change", () => {
+          const val = selector.value;
+          localStorage.setItem("audio_set_theme", val);
+          applyTheme(val);
+        });
+      })();
+    </script>
+  </body>
+</html>
