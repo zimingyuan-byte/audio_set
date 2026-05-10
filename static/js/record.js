@@ -29,6 +29,8 @@
   const waveformCtx = waveformCanvas.getContext("2d");
   const preview32000 = document.getElementById("preview_32000");
   const preview16000 = document.getElementById("preview_16000");
+  const download32000 = document.getElementById("download_32000");
+  const download16000 = document.getElementById("download_16000");
 
   let speakerId = "";
   let textIndex = 0;
@@ -167,10 +169,32 @@
   }
 
   function resetPreview() {
+    if (download32000) {
+      download32000.href = "#";
+      download32000.style.pointerEvents = "none";
+      download32000.style.opacity = "0.6";
+    }
+    if (download16000) {
+      download16000.href = "#";
+      download16000.style.pointerEvents = "none";
+      download16000.style.opacity = "0.6";
+    }
     if (preview32000.src) URL.revokeObjectURL(preview32000.src);
     if (preview16000.src) URL.revokeObjectURL(preview16000.src);
     preview32000.src = "";
     preview16000.src = "";
+  }
+
+  function toSafeFilename(value) {
+    return String(value || "").replace(/[\\/:*?"<>|]+/g, "_").trim();
+  }
+
+  function enablePreviewDownload(linkEl, href, filename) {
+    if (!linkEl) return;
+    linkEl.href = href;
+    linkEl.download = filename;
+    linkEl.style.pointerEvents = "";
+    linkEl.style.opacity = "";
   }
 
   function syncProgress() {
@@ -303,11 +327,11 @@
     currentSpeakerRecords = records || [];
     currentRecordsBody.innerHTML = "";
     if (!speakerId) {
-      currentRecordsBody.innerHTML = '<tr><td colspan="9" class="muted">请先确认 ID。</td></tr>';
+      currentRecordsBody.innerHTML = '<tr><td colspan="10" class="muted">请先确认 ID。</td></tr>';
       return;
     }
     if (!currentSpeakerRecords.length) {
-      currentRecordsBody.innerHTML = '<tr><td colspan="9" class="muted">该ID暂无录音记录。</td></tr>';
+      currentRecordsBody.innerHTML = '<tr><td colspan="10" class="muted">该ID暂无录音记录。</td></tr>';
       return;
     }
     currentSpeakerRecords.forEach((record) => {
@@ -321,6 +345,7 @@
         <td>${Number(record.duration_seconds || 0).toFixed(3)}</td>
         <td>${record.filename}</td>
         <td><audio controls preload="none" src="${record.audio_url}"></audio></td>
+        <td><a href="${record.audio_url}" download="${record.filename}">下载</a></td>
         <td><button type="button" class="btn-rerecord">重录</button></td>
         <td><button type="button" class="btn-delete">删除</button></td>
       `;
@@ -433,6 +458,18 @@
 
         preview32000.src = URL.createObjectURL(wavBlob32000);
         preview16000.src = URL.createObjectURL(wavBlob16000);
+        const safeSpeakerId = toSafeFilename(speakerId);
+        const safeText = toSafeFilename(texts[textIndex] || "text");
+        enablePreviewDownload(
+          download32000,
+          preview32000.src,
+          `${safeSpeakerId}-${safeText}-${roundIndex}-${sampleRate1}.wav`,
+        );
+        enablePreviewDownload(
+          download16000,
+          preview16000.src,
+          `${safeSpeakerId}-${safeText}-${roundIndex}-${sampleRate2}.wav`,
+        );
 
         saveBtn.disabled = false;
         redoBtn.disabled = false;

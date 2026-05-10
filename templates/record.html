@@ -67,8 +67,10 @@
   <div style="margin-top: 12px;">
     <p>32k 预览：</p>
     <audio id="preview_32000" controls></audio>
+    <a id="download_32000" href="#" download="preview-32000.wav" style="margin-left: 8px; pointer-events: none; opacity: 0.6;">下载32k</a>
     <p>16k 预览：</p>
     <audio id="preview_16000" controls></audio>
+    <a id="download_16000" href="#" download="preview-16000.wav" style="margin-left: 8px; pointer-events: none; opacity: 0.6;">下载16k</a>
   </div>
 </div>
 
@@ -93,13 +95,14 @@
         <th>时长(秒)</th>
         <th>文件名</th>
         <th>预览</th>
+        <th>下载</th>
         <th>重录</th>
         <th>删除</th>
       </tr>
     </thead>
     <tbody id="current_records_body">
       <tr>
-        <td colspan="8" class="muted">请先确认 ID。</td>
+        <td colspan="10" class="muted">请先确认 ID。</td>
       </tr>
     </tbody>
   </table>

@@ -139,6 +139,7 @@
         <th>时长(秒)</th>
         <th>时间</th>
         <th>预览</th>
+        <th>下载</th>
         <th>删除</th>
       </tr>
     </thead>
@@ -161,6 +162,7 @@
         <td>{{ "%.3f"|format(rec.duration_seconds) }}</td>
         <td>{{ rec.created_at }}</td>
         <td><audio controls preload="none" src="{{ url_for('audio_preview', record_id=rec.id) }}"></audio></td>
+        <td><a href="{{ url_for('audio_preview', record_id=rec.id) }}" download="{{ rec.filename }}">下载</a></td>
         <td><button type="button" class="delete-record-btn" data-record-id="{{ rec.id }}">删除</button></td>
       </tr>
       {% endfor %}
