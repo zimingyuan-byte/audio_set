@@ -6,7 +6,7 @@
   <div style="flex: 1;">
     <div class="card">
       <h2>按ID+文本下载（ZIP）</h2>
-      <p class="muted">下载勾选单位为“ID + 文本”组合。</p>
+      <p class="muted">下载勾选单位为“ID + 文本”组合；录了多少数据就下载多少数据。</p>
       <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
         <label>
           ID筛选
@@ -104,6 +104,16 @@
 
 <div class="card">
   <h3>全部录音记录</h3>
+  <div style="margin-bottom: 10px;">
+    <label>
+      <input type="checkbox" id="record_select_all" />
+      全选当前筛选结果
+    </label>
+    <form id="record_batch_download_form" method="post" action="{{ url_for('download_records') }}" style="display: inline-block; margin-left: 10px;">
+      <button type="button" id="record_batch_download_btn">批量下载</button>
+    </form>
+    <button type="button" id="record_batch_delete_btn">批量删除</button>
+  </div>
   <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
     <label>
       ID筛选
@@ -128,6 +138,7 @@
   <table>
     <thead>
       <tr>
+        <th>选择</th>
         <th>ID</th>
         <th>文本</th>
         <th>轮次</th>
@@ -151,6 +162,7 @@
         data-record-text="{{ rec.text_content }}"
         data-record-rate="{{ rec.sample_rate }}"
       >
+        <td><input type="checkbox" class="record_checkbox" value="{{ rec.id }}" /></td>
         <td>{{ rec.speaker_id }}</td>
         <td>{{ rec.text_content }}</td>
         <td>{{ rec.round_index }}</td>
@@ -229,6 +241,11 @@
   });
 
   const recordRows = Array.from(document.querySelectorAll("#record_table_body tr"));
+  const recordCheckboxes = () => Array.from(document.querySelectorAll(".record_checkbox"));
+  const recordSelectAll = document.getElementById("record_select_all");
+  const recordBatchDownloadForm = document.getElementById("record_batch_download_form");
+  const recordBatchDownloadBtn = document.getElementById("record_batch_download_btn");
+  const recordBatchDeleteBtn = document.getElementById("record_batch_delete_btn");
   const recordFilterId = document.getElementById("record_filter_id");
   const recordFilterText = document.getElementById("record_filter_text");
   const recordFilterRate = document.getElementById("record_filter_rate");
@@ -275,6 +292,7 @@
       const rateMatch = !rateVal || row.dataset.recordRate === rateVal;
       row.style.display = idMatch && textMatch && rateMatch ? "" : "none";
     });
+    recordSelectAll.checked = false;
   }
 
   recordFilterId.addEventListener("change", applyRecordFilters);
@@ -307,6 +325,60 @@
 
   document.querySelectorAll(".delete-record-btn").forEach((btn) => {
     btn.addEventListener("click", () => deleteRecord(btn.dataset.recordId));
+  });
+
+  function getVisibleSelectedRecordIds() {
+    return recordRows
+      .filter((row) => row.style.display !== "none")
+      .map((row) => row.querySelector(".record_checkbox"))
+      .filter((box) => box && box.checked)
+      .map((box) => Number(box.value));
+  }
+
+  recordSelectAll.addEventListener("change", () => {
+    recordRows.forEach((row) => {
+      if (row.style.display === "none") return;
+      const box = row.querySelector(".record_checkbox");
+      if (box) box.checked = recordSelectAll.checked;
+    });
+  });
+
+  recordBatchDownloadBtn.addEventListener("click", () => {
+    const ids = getVisibleSelectedRecordIds();
+    if (!ids.length) {
+      window.alert("请至少选择一条录音。");
+      return;
+    }
+    recordBatchDownloadForm.querySelectorAll("input[name='record_ids']").forEach((node) => node.remove());
+    ids.forEach((id) => {
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "record_ids";
+      hidden.value = String(id);
+      recordBatchDownloadForm.appendChild(hidden);
+    });
+    recordBatchDownloadForm.submit();
+  });
+
+  recordBatchDeleteBtn.addEventListener("click", async () => {
+    const ids = getVisibleSelectedRecordIds();
+    if (!ids.length) {
+      window.alert("请至少选择一条录音。");
+      return;
+    }
+    const ok = window.confirm(`确认批量删除 ${ids.length} 条录音吗？删除后不可恢复。`);
+    if (!ok) return;
+    const resp = await fetch("/api/delete-records", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ record_ids: ids }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) {
+      window.alert(data.message || "批量删除失败");
+      return;
+    }
+    window.location.reload();
   });
 </script>
 {% endblock %}

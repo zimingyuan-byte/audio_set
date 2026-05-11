@@ -1,7 +1,7 @@
 (function () {
   const cfg = window.RECORDING_CONFIG;
   const texts = cfg.texts || [];
-  const rounds = Number(cfg.rounds || 10);
+  const roundsByText = Array.isArray(cfg.rounds) ? cfg.rounds : [];
   const sampleRate1 = Number(cfg.sample_rate_1 || 32000);
   const sampleRate2 = Number(cfg.sample_rate_2 || 16000);
   const channels = Number(cfg.channels || 1);
@@ -15,6 +15,7 @@
   const promptTextEl = document.getElementById("prompt_text");
   const currentTextEl = document.getElementById("current_text");
   const currentRoundEl = document.getElementById("current_round");
+  const currentTextRoundsEl = document.getElementById("current_text_rounds");
   const taskStatusEl = document.getElementById("task_status");
   const recordStartBtn = document.getElementById("record_start_btn");
   const recordStopBtn = document.getElementById("record_stop_btn");
@@ -201,6 +202,7 @@
     if (textIndex >= texts.length) {
       currentTextEl.textContent = "已完成";
       currentRoundEl.textContent = "-";
+      currentTextRoundsEl.textContent = "-";
       promptTextEl.textContent = "全部完成";
       taskStatusEl.textContent = "所有文本录制完成。";
       recordStartBtn.disabled = true;
@@ -213,6 +215,11 @@
     const currentText = texts[textIndex];
     currentTextEl.textContent = currentText;
     currentRoundEl.textContent = `${roundIndex}`;
+    const textRounds =
+      Number.isFinite(Number(roundsByText[textIndex])) && Number(roundsByText[textIndex]) > 0
+        ? Number(roundsByText[textIndex])
+        : 1;
+    currentTextRoundsEl.textContent = `${Math.floor(textRounds)}`;
     promptTextEl.textContent = currentText;
   }
 

@@ -82,6 +82,14 @@ def load_yaml_config(config_path: str = "config.yaml") -> dict:
     with open(config_path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f) or {}
 
+    texts = raw.get("recording", {}).get("texts", ["123", "abc"])
+    if not isinstance(texts, list):
+        texts = ["123", "abc"]
+    texts = [str(t) for t in texts]
+
+    rounds_raw = raw.get("recording", {}).get("rounds", [])
+    rounds = normalize_rounds_by_texts(texts, rounds_raw)
+
     cfg = {
         "app": {
             "secret_key": raw.get("app", {}).get("secret_key", "change-me-in-production"),
@@ -99,8 +107,8 @@ def load_yaml_config(config_path: str = "config.yaml") -> dict:
             "charset": raw.get("database", {}).get("charset", "utf8mb4"),
         },
         "recording": {
-            "texts": raw.get("recording", {}).get("texts", ["123", "abc"]),
-            "rounds": int(raw.get("recording", {}).get("rounds", 10)),
+            "texts": texts,
+            "rounds": rounds,
             "sample_rate_1": int(raw.get("recording", {}).get("sample_rate_1", 32000)),
             "sample_rate_2": int(raw.get("recording", {}).get("sample_rate_2", 16000)),
             "bit_depth": int(raw.get("recording", {}).get("bit_depth", 16)),
@@ -132,6 +140,47 @@ def login_required(view):
 
 def sanitize_for_filename(value: str) -> str:
     return re.sub(r'[\\/:*?"<>|]+', "_", value).strip() or "text"
+
+
+def normalize_rounds_by_texts(texts: list, rounds_raw) -> list:
+    texts_len = len(texts)
+    if texts_len == 0:
+        return []
+
+    if isinstance(rounds_raw, (int, float, str)):
+        try:
+            r = int(rounds_raw)
+        except ValueError:
+            r = 1
+        if r <= 0:
+            r = 1
+        return [r] * texts_len
+
+    if rounds_raw is None:
+        return [1] * texts_len
+
+    if not isinstance(rounds_raw, list):
+        return [1] * texts_len
+
+    if len(rounds_raw) == 0:
+        return [1] * texts_len
+
+    if len(rounds_raw) > texts_len:
+        raise ValueError("recording.rounds 长度必须小于等于 recording.texts 长度")
+
+    rounds = []
+    for i in range(texts_len):
+        if i < len(rounds_raw) and rounds_raw[i] not in (None, ""):
+            try:
+                n = int(rounds_raw[i])
+            except (TypeError, ValueError):
+                n = 1
+            if n <= 0:
+                n = 1
+            rounds.append(n)
+        else:
+            rounds.append(1)
+    return rounds
 
 
 def get_wav_duration_seconds(wav_bytes: bytes) -> float:
@@ -174,11 +223,11 @@ def get_wav_duration_ms(wav_bytes: bytes) -> int:
 
 def get_recording_progress(speaker_id: str, rec_cfg: dict) -> dict:
     texts = rec_cfg["texts"]
-    rounds = int(rec_cfg["rounds"])
+    rounds_by_text = rec_cfg["rounds"]
     rate_1 = int(rec_cfg["sample_rate_1"])
     rate_2 = int(rec_cfg["sample_rate_2"])
     expected_rates = {rate_1, rate_2}
-    expected_total = len(texts) * rounds * len(expected_rates)
+    expected_total = sum(rounds_by_text) * len(expected_rates)
 
     rows = (
         AudioRecord.query.with_entities(
@@ -200,7 +249,8 @@ def get_recording_progress(speaker_id: str, rec_cfg: dict) -> dict:
     next_text_index = None
     complete = True
     for text_idx, text in enumerate(texts):
-        for round_idx in range(1, rounds + 1):
+        text_rounds = rounds_by_text[text_idx] if text_idx < len(rounds_by_text) else 1
+        for round_idx in range(1, text_rounds + 1):
             done_rates = grouped.get((text, round_idx), set())
             if done_rates != expected_rates:
                 complete = False
@@ -228,7 +278,7 @@ def get_recording_progress(speaker_id: str, rec_cfg: dict) -> dict:
 
 
 def get_session_groups(rec_cfg: dict):
-    expected_total = len(rec_cfg["texts"]) * rec_cfg["rounds"] * 2
+    expected_total = sum(rec_cfg["rounds"]) * 2
     count_rows = (
         db.session.query(
             AudioRecord.speaker_id.label("speaker_id"),
@@ -264,7 +314,7 @@ def get_session_groups(rec_cfg: dict):
 
 
 def build_download_rows(rec_cfg: dict):
-    expected_per_text = rec_cfg["rounds"] * 2
+    rounds_by_text = rec_cfg["rounds"]
     sessions = RecordSession.query.order_by(RecordSession.speaker_id.asc()).all()
     count_rows = (
         db.session.query(
@@ -279,7 +329,8 @@ def build_download_rows(rec_cfg: dict):
 
     rows = []
     for s in sessions:
-        for txt in rec_cfg["texts"]:
+        for idx, txt in enumerate(rec_cfg["texts"]):
+            expected_per_text = (rounds_by_text[idx] if idx < len(rounds_by_text) else 1) * 2
             total = count_map.get((s.speaker_id, txt), 0)
             if total >= expected_per_text:
                 status = "已完成"
@@ -539,7 +590,10 @@ def create_app() -> Flask:
     @login_required
     def download():
         rec_cfg = app.config["RECORDING_CFG"]
-        expected_per_text = rec_cfg["rounds"] * 2
+        rounds_by_text = rec_cfg["rounds"]
+        rounds_map = {}
+        for idx, txt in enumerate(rec_cfg["texts"]):
+            rounds_map[txt] = rounds_by_text[idx] if idx < len(rounds_by_text) else 1
         selected_units = sorted(set(request.form.getlist("record_units")))
         if not selected_units:
             flash("请至少选择一条 ID+文本。", "error")
@@ -616,6 +670,7 @@ def create_app() -> Flask:
             unit_saved_count[key] = unit_saved_count.get(key, 0) + 1
         for sid, txt in pairs:
             total = unit_saved_count.get((sid, txt), 0)
+            expected_per_text = rounds_map.get(txt, 1) * 2
             if total >= expected_per_text:
                 status = "已完成"
             elif total > 0:
@@ -706,6 +761,119 @@ def create_app() -> Flask:
                 "speaker_id": speaker_id,
                 "incomplete_groups": incomplete_groups,
             }
+        )
+
+    @app.post("/api/delete-records")
+    @login_required
+    def delete_records():
+        payload = request.get_json(silent=True) or {}
+        record_ids = payload.get("record_ids") or []
+        if not isinstance(record_ids, list) or not record_ids:
+            return jsonify({"ok": False, "message": "record_ids 不能为空。"}), 400
+        valid_ids = []
+        for rid in record_ids:
+            try:
+                valid_ids.append(int(rid))
+            except (TypeError, ValueError):
+                continue
+        if not valid_ids:
+            return jsonify({"ok": False, "message": "record_ids 格式错误。"}), 400
+
+        rows = AudioRecord.query.filter(AudioRecord.id.in_(valid_ids)).all()
+        if not rows:
+            return jsonify({"ok": False, "message": "未找到可删除的录音。"}), 404
+        for row in rows:
+            db.session.delete(row)
+        db.session.commit()
+        _, incomplete_groups, _ = get_session_groups(app.config["RECORDING_CFG"])
+        return jsonify(
+            {
+                "ok": True,
+                "message": f"已删除 {len(rows)} 条录音。",
+                "incomplete_groups": incomplete_groups,
+            }
+        )
+
+    @app.post("/download-records")
+    @login_required
+    def download_records():
+        record_ids = request.form.getlist("record_ids")
+        if not record_ids:
+            flash("请至少选择一条录音。", "error")
+            return redirect(url_for("recordings"))
+        valid_ids = []
+        for rid in record_ids:
+            try:
+                valid_ids.append(int(rid))
+            except (TypeError, ValueError):
+                continue
+        if not valid_ids:
+            flash("录音ID格式错误。", "error")
+            return redirect(url_for("recordings"))
+
+        rows = (
+            AudioRecord.query.filter(AudioRecord.id.in_(valid_ids))
+            .order_by(AudioRecord.speaker_id.asc(), AudioRecord.text_content.asc(), AudioRecord.filename.asc())
+            .all()
+        )
+        if not rows:
+            flash("未找到对应录音数据。", "error")
+            return redirect(url_for("recordings"))
+
+        user_ids = {r.user_id for r in rows}
+        user_rows = User.query.filter(User.id.in_(user_ids)).all() if user_ids else []
+        user_map = {u.id: u.username for u in user_rows}
+
+        audio_meta_csv = StringIO()
+        writer = csv.writer(audio_meta_csv)
+        writer.writerow(
+            [
+                "record_id",
+                "speaker_id",
+                "text",
+                "round_index",
+                "sample_rate",
+                "bit_depth",
+                "channels",
+                "filename",
+                "login_user",
+                "duration_seconds",
+                "created_at",
+                "bytes",
+            ]
+        )
+        for row in rows:
+            writer.writerow(
+                [
+                    row.id,
+                    row.speaker_id,
+                    row.text_content,
+                    row.round_index,
+                    row.sample_rate,
+                    row.bit_depth,
+                    row.channels,
+                    row.filename,
+                    user_map.get(row.user_id, f"user-{row.user_id}"),
+                    f"{row.duration_seconds:.3f}",
+                    row.created_at.isoformat(),
+                    len(row.audio_data),
+                ]
+            )
+
+        buf = BytesIO()
+        with ZipFile(buf, "w", compression=ZIP_DEFLATED) as zf:
+            for row in rows:
+                safe_text = sanitize_for_filename(row.text_content)
+                zf.writestr(f"{row.speaker_id}/{safe_text}/{row.filename}", row.audio_data)
+            zf.writestr("_metadata/audio_metadata.csv", audio_meta_csv.getvalue())
+        buf.seek(0)
+
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return send_file(
+            buf,
+            mimetype="application/zip",
+            as_attachment=True,
+            download_name=f"audio-records-selected-{ts}.zip",
         )
 
     with app.app_context():

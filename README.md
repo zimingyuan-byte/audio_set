@@ -101,7 +101,7 @@ database:
 
 recording:
   texts: ["123", "abc"]
-  rounds: 10
+  rounds: [10, 10]
   sample_rate_1: 32000
   sample_rate_2: 16000
   bit_depth: 16
@@ -114,7 +114,10 @@ recording:
 - `app.host` / `app.port`：服务监听地址与端口
 - `database.uri`：数据库连接串（优先级高于拆分字段）
 - `recording.texts`：录音文本列表
-- `recording.rounds`：每个文本录制轮数
+- `recording.rounds`：数组，和 `texts` 对应的录制轮数
+  - 长度需 `<= texts` 长度
+  - 例如 `rounds: [10, 30, 5]` 表示前 3 个文本分别录制 10/30/5 轮，其余文本默认 1 轮
+  - 若 `rounds: []`，则所有文本默认 1 轮
 - `recording.sample_rate_1 / sample_rate_2`：双采样率
 - `recording.bit_depth` / `channels`：位深与通道数
 

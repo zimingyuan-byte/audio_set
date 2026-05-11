@@ -16,7 +16,8 @@ database:
 
 recording:
   texts: ["123", "abc"]
-  rounds: 10
+  # rounds 与 texts 一一对应；缺省项默认 1，空数组则全部默认为 1
+  rounds: [5, 2]
   sample_rate_1: 32000
   sample_rate_2: 16000
   bit_depth: 16
